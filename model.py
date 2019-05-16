@@ -5,7 +5,7 @@ from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint
 from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout, Dense, Flatten
-from utils import INPUT_SHAPE, batch_generator
+from utils import INPUT_SHAPE, generator
 import argparse
 import os
 
@@ -31,11 +31,11 @@ def build_model(args):
     """
     model = Sequential()
     model.add(Lambda(lambda x: (x/255.0)-0.5, input_shape=INPUT_SHAPE))
-    model.add(Conv2D(24, 5, 5, activation='elu', subsample=(2, 2)))
-    model.add(Conv2D(36, 5, 5, activation='elu', subsample=(2, 2)))
-    model.add(Conv2D(48, 5, 5, activation='elu', subsample=(2, 2)))
-    model.add(Conv2D(64, 3, 3, activation='elu'))
-    model.add(Conv2D(64, 3, 3, activation='elu'))
+    model.add(Conv2D(24, (5, 5), activation="elu", strides=(2, 2)))
+    model.add(Conv2D(36, (5, 5), activation="elu", strides=(2, 2)))
+    model.add(Conv2D(48, (5, 5), activation="elu", strides=(2, 2)))
+    model.add(Conv2D(64, (3, 3), activation="elu"))
+    model.add(Conv2D(64, (3, 3), activation="elu"))
     model.add(Dropout(args.keep_prob))
     model.add(Flatten())
     model.add(Dense(100, activation='elu'))
@@ -59,16 +59,11 @@ def train_model(model, args, X_train, X_valid, y_train, y_valid):
 
     model.compile(loss='mean_squared_error', optimizer=Adam(lr=args.learning_rate))
 
-    train_generator = generator(train_samples, batch_size=32)
-    validation_generator = generator(validation_samples, batch_size=32)
-
-    model.fit_generator(train_generator, samples_per_epoch= len(train_samples), validation_data=validation_generator,           nb_val_samples=len(X_valid), nb_epoch=5, verbose=1)
-
-    model.fit_generator(batch_generator(X_train, y_train, args.batch_size, True),
+    model.fit_generator(generator(X_train, y_train, args.batch_size, True),
                         args.samples_per_epoch,
                         args.nb_epoch,
                         max_q_size=1,
-                        validation_data=batch_generator(X_valid, y_valid, args.batch_size, False),
+                        validation_data=generator(X_valid, y_valid, args.batch_size, False),
                         nb_val_samples=len(X_valid),
                         callbacks=[checkpoint],
                         verbose=1)
