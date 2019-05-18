@@ -1,6 +1,5 @@
 import cv2, os
 import numpy as np
-import matplotlib.image as mpimg
 from sklearn.utils import shuffle
 
 
@@ -45,10 +44,12 @@ def choose_image(center, left, right, steering_angle, choice= np.random.choice(3
     """
 
     img, angle = cv2.imread(center), steering_angle
-    if choice == 0:
+    if choice == 1:
         img, angle = cv2.imread(left), steering_angle + 0.25
-    elif choice == 1:
+    elif choice == 2:
         img, angle = cv2.imread(right), steering_angle - 0.25
+
+    img = preprocess(img)
 
     if flip:
         img = cv2.flip(img,1)
@@ -65,69 +66,54 @@ def generator(paths, angles, batch_size, is_training):
     num_samples = len(paths)
    
     while 1: 
-        shuffle(samples) #shuffling the total images
+        shuffle(paths, angles) #shuffling the total images
         for offset in range(0, num_samples, batch_size):
             
-            batch_samples = samples[offset:offset+batch_size]
+            batch_paths = paths[offset:offset+batch_size]
+            batch_angles = angles[offset:offset + batch_size]
 
             images = []
             angles = []
-            for batch_sample in batch_samples:
-                    for i in range(0,3): #we are taking 3 images, first one is center, second is left and third is right
-                        center, left, right = choose_image(*batch_sample, )
-                        center_image = cv2.cvtColor(cv2.imread(name), cv2.COLOR_BGR2RGB) #since CV2 reads an image in BGR we need to convert it to RGB since in drive.py it is RGB
-                        center_angle = float(batch_sample[3]) #getting the steering angle measurement
-                        images.append(center_image)
-                        
-                        # introducing correction for left and right images
-                        # if image is in left we increase the steering angle by 0.2
-                        # if image is in right we decrease the steering angle by 0.2
-                        
-                        if(i==0):
-                            angles.append(center_angle)
-                        elif(i==1):
-                            angles.append(center_angle+0.2)
-                        elif(i==2):
-                            angles.append(center_angle-0.2)
-                        
-                        # Code for Augmentation of data.
-                        # We take the image and just flip it and negate the measurement
-                        
-                        images.append(cv2.flip(center_image,1))
-                        if(i==0):
-                            angles.append(center_angle*-1)
-                        elif(i==1):
-                            angles.append((center_angle+0.2)*-1)
-                        elif(i==2):
-                            angles.append((center_angle-0.2)*-1)
-                        #here we got 6 images from one image    
-                        
-        
+            for index, batch_sample in enumerate(batch_paths):
+                    if is_training:
+                        for i in range(0,3): #we are taking 3 images, first one is center, second is left and third is right
+                            image, angle = choose_image(*batch_sample, batch_angles[index], choice=i, flip=False)
+                            images.append(image)
+                            angles.append(angle)
+
+                            image, angle = choose_image(*batch_sample, batch_angles[index], choice=i, flip=True)
+                            images.append(image)
+                            angles.append(angle)
+                    else:
+                        image, angle = choose_image(*batch_sample, batch_angles[index], choice=0, flip=False)
+                        images.append(image)
+                        angles.append(angle)
+
             X_train = np.array(images)
             y_train = np.array(angles)
             
-            yield sklearn.utils.shuffle(X_train, y_train)
+            yield shuffle(X_train, y_train)
             
             
             
             
             
-    images = np.empty([batch_size, IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS])
-    steers = np.empty(batch_size)
-    while True:
-        i = 0
-        for index in np.random.permutation(paths.shape[0]):
-            center, left, right = paths[index]
-            steering_angle = angles[index]
-            # argumentation
-            if is_training and np.random.rand() < 0.6:
-                image, steering_angle = choose_image(center, left, right, steering_angle)
-            else:
-                image = cv2.imread(center)
-            # add the image and steering angle to the batch
-            images[i] = preprocess(image)
-            steers[i] = steering_angle
-            i += 1
-            if i == batch_size:
-                break
-        yield images, steers
+    # images = np.empty([batch_size, IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS])
+    # steers = np.empty(batch_size)
+    # while True:
+    #     i = 0
+    #     for index in np.random.permutation(paths.shape[0]):
+    #         center, left, right = paths[index]
+    #         steering_angle = angles[index]
+    #         # argumentation
+    #         if is_training and np.random.rand() < 0.6:
+    #             image, steering_angle = choose_image(center, left, right, steering_angle)
+    #         else:
+    #             image = cv2.imread(center)
+    #         # add the image and steering angle to the batch
+    #         images[i] = preprocess(image)
+    #         steers[i] = steering_angle
+    #         i += 1
+    #         if i == batch_size:
+    #             break
+    #     yield images, steers

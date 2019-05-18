@@ -5,7 +5,6 @@ from keras.models import Sequential
 from keras.optimizers import Adam
 from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout, Dense, Flatten
-from keras.layers.normalization import BatchNormalization
 import argparse
 import os
 
@@ -58,7 +57,7 @@ def train_model(model, args, X_train, X_valid, y_train, y_valid):
                                  verbose=0,
                                  save_best_only=args.save_best_only,
                                  mode='auto')
-    callback = EarlyStopping(monitor='val_loss', patience=2, verbose=1)
+    # callback = EarlyStopping(monitor='val_loss', patience=2, verbose=1)
     print(len(X_train))
     model.compile(loss='mean_squared_error', optimizer=Adam(lr=args.learning_rate))
         
