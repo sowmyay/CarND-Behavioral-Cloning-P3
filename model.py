@@ -3,71 +3,15 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from keras.models import Sequential
 from keras.optimizers import Adam
-from keras.callbacks import ModelCheckpoint
+from keras.callbacks import ModelCheckpoint, EarlyStopping
 from keras.layers import Lambda, Conv2D, MaxPooling2D, Dropout, Dense, Flatten
+from keras.layers.normalization import BatchNormalization
 import argparse
 import os
-import cv2, os
-import matplotlib.image as mpimg
-from sklearn.utils import shuffle
+
+from utils import generator, INPUT_SHAPE
 
 np.random.seed(0)
-IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS = 160, 320, 3
-INPUT_SHAPE = (IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS)
-
-
-def preprocess(img):
-    """
-    Combine all preprocess functions into one
-    """
-    img = img[60:-25, :, :]
-    img = cv2.resize(img, (IMAGE_WIDTH, IMAGE_HEIGHT), cv2.INTER_AREA)
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2YUV)
-    return img
-
-
-def choose_image(center, left, right, steering_angle, choice= np.random.choice(3), flip=False):
-    """
-    Randomly choose an image from the center, left or right, and adjust
-    the steering angle.
-    """
-
-    img, angle = cv2.imread(center), steering_angle
-    if choice == 0:
-        img, angle = cv2.imread(left), steering_angle + 0.2
-    elif choice == 1:
-        img, angle = cv2.imread(right), steering_angle - 0.2
-
-    if flip:
-        img = cv2.flip(img,1)
-        angle = -1*angle
-
-    return img, angle
-
-
-def generator(paths, angles, batch_size, is_training):
-    """
-    Generate training image give image paths and associated steering angles
-    """
-    images = np.empty([batch_size, IMAGE_HEIGHT, IMAGE_WIDTH, IMAGE_CHANNELS])
-    steers = np.empty(batch_size)
-    while True:
-        i = 0
-        for index in np.random.permutation(paths.shape[0]):
-            center, left, right = paths[index]
-            steering_angle = angles[index]
-            # argumentation
-            if is_training and np.random.rand() < 0.6:
-                image, steering_angle = choose_image(center, left, right, steering_angle, flip=(np.random.rand()<0.5))
-            else:
-                image = cv2.imread(center)
-            # add the image and steering angle to the batch
-            images[i] = preprocess(image)
-            steers[i] = steering_angle
-            i += 1
-            if i == batch_size:
-                break
-        yield images, steers
 
 def load_data(args):
     """
@@ -88,7 +32,7 @@ def build_model(args):
     Modified NVIDIA model
     """
     model = Sequential()
-    model.add(Lambda(lambda x: (x/255.0)-0.5, input_shape=INPUT_SHAPE))
+    model.add(Lambda(lambda x: (x/255.0) - 0.5, input_shape=INPUT_SHAPE))
     model.add(Conv2D(24, (5, 5), activation="elu", strides=(2, 2)))
     model.add(Conv2D(36, (5, 5), activation="elu", strides=(2, 2)))
     model.add(Conv2D(48, (5, 5), activation="elu", strides=(2, 2)))
@@ -114,19 +58,19 @@ def train_model(model, args, X_train, X_valid, y_train, y_valid):
                                  verbose=0,
                                  save_best_only=args.save_best_only,
                                  mode='auto')
-
+    callback = EarlyStopping(monitor='val_loss', patience=2, verbose=1)
+    print(len(X_train))
     model.compile(loss='mean_squared_error', optimizer=Adam(lr=args.learning_rate))
-
+        
     model.fit_generator(generator(X_train, y_train, args.batch_size, True),
-                        args.samples_per_epoch,
-                        args.nb_epoch,
+                        args.samples_per_epoch/args.batch_size,
+                        args.epochs,
                         max_q_size=1,
                         validation_data=generator(X_valid, y_valid, args.batch_size, False),
                         nb_val_samples=len(X_valid),
                         callbacks=[checkpoint],
                         verbose=1)
-
-
+   
 def s2b(s):
     """
     Converts a string to boolean value
@@ -143,9 +87,9 @@ def main():
     parser.add_argument('-d', help='data directory',        dest='data_dir',          type=str,   default='data')
     parser.add_argument('-t', help='test size fraction',    dest='test_size',         type=float, default=0.2)
     parser.add_argument('-k', help='drop out probability',  dest='keep_prob',         type=float, default=0.5)
-    parser.add_argument('-n', help='number of epochs',      dest='nb_epoch',          type=int,   default=4)
+    parser.add_argument('-n', help='number of epochs',      dest='epochs',            type=int,   default=10)
     parser.add_argument('-s', help='samples per epoch',     dest='samples_per_epoch', type=int,   default=20000)
-    parser.add_argument('-b', help='batch size',            dest='batch_size',        type=int,   default=40)
+    parser.add_argument('-b', help='batch size',            dest='batch_size',        type=int,   default=256)
     parser.add_argument('-o', help='save best models only', dest='save_best_only',    type=s2b,   default='true')
     parser.add_argument('-l', help='learning rate',         dest='learning_rate',     type=float, default=1.0e-4)
     args = parser.parse_args()
